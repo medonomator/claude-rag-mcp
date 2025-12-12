@@ -1,0 +1,66 @@
+{
+  "name": "claude-rag-mcp",
+  "version": "0.1.0",
+  "description": "MCP server for Claude Code with RAG capabilities - semantic search over your coding sessions",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "claude-rag-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "start": "node dist/index.js",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "docker:up": "docker-compose -f docker/docker-compose.yml up -d",
+    "docker:down": "docker-compose -f docker/docker-compose.yml down",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:seed": "tsx scripts/seed.ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "rag",
+    "semantic-search",
+    "embeddings",
+    "qdrant",
+    "knowledge-base",
+    "ai",
+    "anthropic"
+  ],
+  "author": "Dmitry",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/medonomator/claude-rag-mcp.git"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0",
+    "@qdrant/js-client-rest": "^1.12.0",
+    "better-sqlite3": "^11.6.0",
+    "openai": "^4.73.0",
+    "tiktoken": "^1.0.18",
+    "uuid": "^11.0.3",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^22.10.1",
+    "@types/uuid": "^10.0.0",
+    "@typescript-eslint/eslint-plugin": "^8.17.0",
+    "@typescript-eslint/parser": "^8.17.0",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.2",
+    "tsup": "^8.3.5",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "vitest": "^2.1.8"
+  }
+}
