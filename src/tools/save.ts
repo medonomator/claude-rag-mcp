@@ -1,8 +1,9 @@
-import { SaveInput, SaveInputSchema, KnowledgeEntry, ChunkEntry } from '../models/knowledge.js';
+import { SaveInputSchema, KnowledgeEntry } from '../models/knowledge.js';
 import { createLogger } from '../utils/logger.js';
 import { hashContent, generateId } from '../utils/hash.js';
 import type { EmbeddingService } from '../services/embedder.js';
 import type { ChunkerService } from '../services/chunker.js';
+import type { TaggerService } from '../services/tagger.js';
 import type { QdrantService } from '../storage/qdrant.js';
 import type { SQLiteService } from '../storage/sqlite.js';
 
@@ -11,6 +12,7 @@ const logger = createLogger('SaveTool');
 export interface SaveToolDeps {
   embedder: EmbeddingService;
   chunker: ChunkerService;
+  tagger: TaggerService;
   qdrant: QdrantService;
   sqlite: SQLiteService;
 }
@@ -43,6 +45,13 @@ export async function executeSave(
     };
   }
 
+  // Auto-generate tags if enabled
+  let tags = data.tags || [];
+  if (deps.tagger.isEnabled()) {
+    tags = await deps.tagger.generateTags(data.content, tags);
+    logger.debug(`Auto-tagged: ${tags.join(', ')}`);
+  }
+
   // Chunk content
   const chunks = deps.chunker.chunk(data.content);
   logger.debug(`Created ${chunks.length} chunks`);
@@ -57,7 +66,7 @@ export async function executeSave(
     content: data.content,
     content_hash: contentHash,
     type: data.type,
-    tags: data.tags || [],
+    tags: tags,
     files: data.files || [],
     language: data.language,
     framework: data.framework,

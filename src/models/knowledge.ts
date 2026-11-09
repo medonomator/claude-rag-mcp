@@ -41,7 +41,7 @@ export interface KnowledgeEntry {
 }
 
 // Qdrant point payload
-export interface QdrantPayload {
+export type QdrantPayload = {
   entry_id: string;
   chunk_index: number;
   project_id: string;
@@ -52,7 +52,7 @@ export interface QdrantPayload {
   content_preview: string;
   content: string;
   created_at: number;
-}
+};
 
 // Input schemas for tools
 export const SaveInputSchema = z.object({

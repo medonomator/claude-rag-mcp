@@ -34,6 +34,9 @@ const ConfigSchema = z.object({
   denseWeight: z.number().default(0.7),
   sparseWeight: z.number().default(0.3),
 
+  // Auto-tagging
+  autoTaggingEnabled: z.boolean().default(true),
+
   // Logging
   logLevel: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
   logFile: z.string().optional(),
@@ -85,6 +88,8 @@ export function loadConfig(): Config {
     hybridSearchEnabled: parseBoolean(process.env.HYBRID_SEARCH_ENABLED, true),
     denseWeight: parseNumber(process.env.DENSE_WEIGHT, 0.7) / 10,
     sparseWeight: parseNumber(process.env.SPARSE_WEIGHT, 0.3) / 10,
+
+    autoTaggingEnabled: parseBoolean(process.env.AUTO_TAGGING_ENABLED, true),
 
     logLevel: process.env.LOG_LEVEL || 'info',
     logFile: process.env.LOG_FILE ? expandPath(process.env.LOG_FILE) : undefined,

@@ -45,6 +45,8 @@
     "@modelcontextprotocol/sdk": "^1.0.0",
     "@qdrant/js-client-rest": "^1.12.0",
     "better-sqlite3": "^11.6.0",
+    "esbuild": "^0.28.0",
+    "https-proxy-agent": "^9.0.0",
     "openai": "^4.73.0",
     "tiktoken": "^1.0.18",
     "uuid": "^11.0.3",

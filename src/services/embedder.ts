@@ -1,8 +1,18 @@
 import OpenAI from 'openai';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import { Config } from '../models/config.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('Embedder');
+
+function getHttpAgent(): HttpsProxyAgent<string> | undefined {
+  const proxy =
+    process.env['https_proxy'] ??
+    process.env['HTTPS_PROXY'] ??
+    process.env['http_proxy'] ??
+    process.env['HTTP_PROXY'];
+  return proxy ? new HttpsProxyAgent(proxy) : undefined;
+}
 
 export interface EmbeddingService {
   embed(text: string): Promise<number[]>;
@@ -20,7 +30,7 @@ class OpenAIEmbedder implements EmbeddingService {
       throw new Error('OPENAI_API_KEY is required for OpenAI embeddings');
     }
 
-    this.client = new OpenAI({ apiKey: config.openaiApiKey });
+    this.client = new OpenAI({ apiKey: config.openaiApiKey, httpAgent: getHttpAgent() });
     this.model = config.embeddingModel;
     this.dimensions = config.embeddingDimensions;
     logger.info(`Initialized OpenAI embedder with model: ${this.model}`);

@@ -17,7 +17,7 @@ export interface ChunkerService {
 class RecursiveChunker implements ChunkerService {
   private chunkSize: number;
   private chunkOverlap: number;
-  private separators: string[];
+  private readonly separators: string[];
 
   constructor(config: Config) {
     this.chunkSize = config.chunkSize;
@@ -45,10 +45,10 @@ class RecursiveChunker implements ChunkerService {
     }));
   }
 
-  private recursiveSplit(text: string): string[] {
+  private recursiveSplit(text: string, separators: string[] = this.separators): string[] {
     // Find the best separator that exists in the text
     let separator = '';
-    for (const sep of this.separators) {
+    for (const sep of separators) {
       if (sep === '' || text.includes(sep)) {
         separator = sep;
         break;
@@ -89,15 +89,9 @@ class RecursiveChunker implements ChunkerService {
     for (const chunk of chunks) {
       if (estimateTokens(chunk) > this.chunkSize * 1.5) {
         // Find a finer separator and split again
-        const finerSeparators = this.separators.slice(this.separators.indexOf(separator) + 1);
+        const finerSeparators = separators.slice(separators.indexOf(separator) + 1);
         if (finerSeparators.length > 0) {
-          const subChunker = new RecursiveChunker({
-            chunkSize: this.chunkSize,
-            chunkOverlap: this.chunkOverlap,
-          } as Config);
-          // @ts-expect-error - accessing private for recursion
-          subChunker.separators = finerSeparators;
-          result.push(...subChunker.recursiveSplit(chunk));
+          result.push(...this.recursiveSplit(chunk, finerSeparators));
         } else {
           result.push(chunk);
         }

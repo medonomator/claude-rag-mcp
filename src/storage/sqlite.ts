@@ -27,6 +27,11 @@ export interface SQLiteService {
     by_type: Record<string, number>;
     by_project: Record<string, number>;
   };
+  keywordSearch(query: string, filters?: {
+    project_id?: string;
+    type?: KnowledgeType;
+    limit?: number;
+  }): Array<{ id: string; score: number }>;
   close(): void;
 }
 
@@ -75,6 +80,14 @@ export class SQLiteStorage implements SQLiteService {
       );
 
       CREATE INDEX IF NOT EXISTS idx_tag ON entry_tags(tag);
+
+      -- Full-text search table
+      CREATE VIRTUAL TABLE IF NOT EXISTS knowledge_fts USING fts5(
+        id UNINDEXED,
+        content,
+        tags,
+        tokenize='porter unicode61'
+      );
     `);
 
     logger.info('Database schema initialized');
@@ -89,6 +102,10 @@ export class SQLiteStorage implements SQLiteService {
 
     const tagStmt = this.db.prepare(`
       INSERT INTO entry_tags (entry_id, tag) VALUES (?, ?)
+    `);
+
+    const ftsStmt = this.db.prepare(`
+      INSERT INTO knowledge_fts (id, content, tags) VALUES (?, ?, ?)
     `);
 
     const transaction = this.db.transaction(() => {
@@ -112,6 +129,9 @@ export class SQLiteStorage implements SQLiteService {
       for (const tag of entry.tags) {
         tagStmt.run(entry.id, tag);
       }
+
+      // Add to FTS
+      ftsStmt.run(entry.id, entry.content, entry.tags.join(' '));
     });
 
     transaction();
@@ -183,7 +203,11 @@ export class SQLiteStorage implements SQLiteService {
   }
 
   deleteEntry(id: string): boolean {
-    const result = this.db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id);
+    const transaction = this.db.transaction(() => {
+      this.db.prepare('DELETE FROM knowledge_fts WHERE id = ?').run(id);
+      return this.db.prepare('DELETE FROM knowledge_entries WHERE id = ?').run(id);
+    });
+    const result = transaction();
     return result.changes > 0;
   }
 
@@ -258,6 +282,60 @@ export class SQLiteStorage implements SQLiteService {
       by_type: Object.fromEntries(byType.map((r) => [r.type, r.count])),
       by_project: Object.fromEntries(byProject.map((r) => [r.project_id, r.count])),
     };
+  }
+
+  keywordSearch(query: string, filters?: {
+    project_id?: string;
+    type?: KnowledgeType;
+    limit?: number;
+  }): Array<{ id: string; score: number }> {
+    // Escape special FTS5 characters and create search query
+    const searchTerms = query
+      .replace(/['"]/g, '')
+      .split(/\s+/)
+      .filter(term => term.length > 1)
+      .map(term => `"${term}"*`)
+      .join(' OR ');
+
+    if (!searchTerms) {
+      return [];
+    }
+
+    let sql = `
+      SELECT
+        fts.id,
+        bm25(knowledge_fts) as score
+      FROM knowledge_fts fts
+      JOIN knowledge_entries e ON fts.id = e.id
+      WHERE knowledge_fts MATCH ?
+    `;
+    const params: unknown[] = [searchTerms];
+
+    if (filters?.project_id) {
+      sql += ' AND e.project_id = ?';
+      params.push(filters.project_id);
+    }
+
+    if (filters?.type) {
+      sql += ' AND e.type = ?';
+      params.push(filters.type);
+    }
+
+    sql += ' ORDER BY score';
+    sql += ` LIMIT ${filters?.limit || 20}`;
+
+    try {
+      const rows = this.db.prepare(sql).all(...params) as Array<{ id: string; score: number }>;
+      // BM25 returns negative scores (lower is better), normalize to 0-1
+      const maxScore = Math.abs(Math.min(...rows.map(r => r.score), -0.001));
+      return rows.map(row => ({
+        id: row.id,
+        score: Math.abs(row.score) / maxScore, // Normalize to 0-1
+      }));
+    } catch (error) {
+      logger.debug(`FTS search failed: ${error}`);
+      return [];
+    }
   }
 
   close(): void {

@@ -95,9 +95,12 @@ rag_delete: Remove entry
 | Tool | Description |
 |------|-------------|
 | `rag_save` | Save knowledge (solution, command, code, note, bugfix, architecture) |
-| `rag_search` | Semantic search with filters |
+| `rag_search` | Hybrid search (semantic + keyword) with filters |
 | `rag_list` | List entries with pagination |
 | `rag_delete` | Delete by ID |
+| `rag_update` | Update tags/metadata of existing entry |
+| `rag_stats` | Get statistics (total entries, by type, by project) |
+| `rag_similar` | Find entries similar to a given entry |
 
 ## Configuration
 
@@ -130,6 +133,12 @@ CHUNK_OVERLAP=50
 # Search
 DEFAULT_SEARCH_LIMIT=10
 MIN_SCORE_THRESHOLD=0.5
+HYBRID_SEARCH_ENABLED=true    # Enable keyword+semantic hybrid search
+DENSE_WEIGHT=7                # Semantic search weight (0-10)
+SPARSE_WEIGHT=3               # Keyword search weight (0-10)
+
+# Auto-tagging
+AUTO_TAGGING_ENABLED=true     # Auto-generate tags via LLM
 
 # Logging
 LOG_LEVEL=info  # debug | info | warn | error

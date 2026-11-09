@@ -9,6 +9,7 @@ import { Config, loadConfig } from './models/config.js';
 import { createLogger, logger } from './utils/logger.js';
 import { createEmbedder, EmbeddingService } from './services/embedder.js';
 import { createChunker, ChunkerService } from './services/chunker.js';
+import { createTagger, TaggerService } from './services/tagger.js';
 import { createQdrantStorage, QdrantService } from './storage/qdrant.js';
 import { createSQLiteStorage, SQLiteService } from './storage/sqlite.js';
 
@@ -21,6 +22,12 @@ import {
   listToolDefinition,
   executeDelete,
   deleteToolDefinition,
+  executeUpdate,
+  updateToolDefinition,
+  executeStats,
+  statsToolDefinition,
+  executeSimilar,
+  similarToolDefinition,
 } from './tools/index.js';
 
 const serverLogger = createLogger('Server');
@@ -30,6 +37,7 @@ export class RAGServer {
   private config: Config;
   private embedder!: EmbeddingService;
   private chunker!: ChunkerService;
+  private tagger!: TaggerService;
   private qdrant!: QdrantService;
   private sqlite!: SQLiteService;
 
@@ -61,6 +69,9 @@ export class RAGServer {
           searchToolDefinition,
           listToolDefinition,
           deleteToolDefinition,
+          updateToolDefinition,
+          statsToolDefinition,
+          similarToolDefinition,
         ],
       };
     });
@@ -77,6 +88,7 @@ export class RAGServer {
             const result = await executeSave(args, {
               embedder: this.embedder,
               chunker: this.chunker,
+              tagger: this.tagger,
               qdrant: this.qdrant,
               sqlite: this.sqlite,
             });
@@ -90,6 +102,9 @@ export class RAGServer {
               embedder: this.embedder,
               qdrant: this.qdrant,
               sqlite: this.sqlite,
+              hybridEnabled: this.config.hybridSearchEnabled,
+              denseWeight: this.config.denseWeight,
+              sparseWeight: this.config.sparseWeight,
             });
             return {
               content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
@@ -107,6 +122,36 @@ export class RAGServer {
 
           case 'rag_delete': {
             const result = await executeDelete(args, {
+              qdrant: this.qdrant,
+              sqlite: this.sqlite,
+            });
+            return {
+              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            };
+          }
+
+          case 'rag_update': {
+            const result = await executeUpdate(args, {
+              sqlite: this.sqlite,
+            });
+            return {
+              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            };
+          }
+
+          case 'rag_stats': {
+            const result = await executeStats(args, {
+              sqlite: this.sqlite,
+              qdrant: this.qdrant,
+            });
+            return {
+              content: [{ type: 'text', text: JSON.stringify(result, null, 2) }],
+            };
+          }
+
+          case 'rag_similar': {
+            const result = await executeSimilar(args, {
+              embedder: this.embedder,
               qdrant: this.qdrant,
               sqlite: this.sqlite,
             });
@@ -142,6 +187,7 @@ export class RAGServer {
     // Initialize services
     this.embedder = createEmbedder(this.config);
     this.chunker = createChunker(this.config);
+    this.tagger = createTagger(this.config);
 
     // Initialize storage
     this.sqlite = createSQLiteStorage(this.config);

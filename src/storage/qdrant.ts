@@ -1,9 +1,22 @@
-import { QdrantClient } from '@qdrant/js-client-rest';
+import { QdrantClient, type Schemas } from '@qdrant/js-client-rest';
+import { z } from 'zod';
 import { Config } from '../models/config.js';
 import { createLogger } from '../utils/logger.js';
-import type { QdrantPayload, SearchResult, KnowledgeType } from '../models/knowledge.js';
+import { KnowledgeTypeEnum } from '../models/knowledge.js';
+import type { QdrantPayload, SearchResult } from '../models/knowledge.js';
 
 const logger = createLogger('Qdrant');
+
+const HitPayloadSchema = z.object({
+  entry_id: z.string(),
+  chunk_index: z.number(),
+  project_id: z.string(),
+  type: KnowledgeTypeEnum,
+  tags: z.array(z.string()),
+  content_preview: z.string(),
+  content: z.string(),
+  created_at: z.number(),
+});
 
 export interface QdrantService {
   initialize(): Promise<void>;
@@ -39,8 +52,11 @@ export class QdrantStorage implements QdrantService {
   private dimensions: number;
 
   constructor(config: Config, dimensions: number) {
+    const url = new URL(config.qdrantUrl);
+    const port = url.port ? Number(url.port) : url.protocol === 'https:' ? 443 : 6333;
     this.client = new QdrantClient({
       url: config.qdrantUrl,
+      port,
       apiKey: config.qdrantApiKey || undefined,
     });
     this.collection = config.qdrantCollection;
@@ -106,7 +122,7 @@ export class QdrantStorage implements QdrantService {
         content_preview: chunk.content.slice(0, 200),
         content: chunk.content,
         ...metadata,
-      } as QdrantPayload,
+      } satisfies QdrantPayload,
     }));
 
     await this.client.upsert(this.collection, {
@@ -155,7 +171,7 @@ export class QdrantStorage implements QdrantService {
       must.push({ key: 'created_at', range: { lte: filters.date_to } });
     }
 
-    const searchParams: Parameters<typeof this.client.search>[1] = {
+    const searchParams: Schemas['SearchRequest'] = {
       vector: embedding,
       limit,
       score_threshold: minScore,
@@ -168,19 +184,26 @@ export class QdrantStorage implements QdrantService {
 
     const results = await this.client.search(this.collection, searchParams);
 
-    return results.map((hit) => {
-      const payload = hit.payload as QdrantPayload;
-      return {
-        id: payload.entry_id,
-        score: hit.score,
-        content: payload.content,
-        content_preview: payload.content_preview,
-        type: payload.type as KnowledgeType,
-        tags: payload.tags,
-        project_id: payload.project_id,
-        created_at: new Date(payload.created_at),
-        chunk_index: payload.chunk_index,
-      };
+    return results.flatMap((hit) => {
+      const parsed = HitPayloadSchema.safeParse(hit.payload);
+      if (!parsed.success) {
+        logger.warn(`Skipping point ${hit.id} with invalid payload`);
+        return [];
+      }
+      const payload = parsed.data;
+      return [
+        {
+          id: payload.entry_id,
+          score: hit.score,
+          content: payload.content,
+          content_preview: payload.content_preview,
+          type: payload.type,
+          tags: payload.tags,
+          project_id: payload.project_id,
+          created_at: new Date(payload.created_at),
+          chunk_index: payload.chunk_index,
+        },
+      ];
     });
   }
 
